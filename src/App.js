@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import ReactFlow, {
   ReactFlowProvider,
   addEdge,
   removeElements,
-  Controls
+  getOutgoers
 } from 'react-flow-renderer'
 
 import Sidebar from './Sidebar'
@@ -14,54 +14,87 @@ const initialElements = [
   {
     id: '1',
     type: 'input',
-    data: { label: 'input node' },
-    position: { x: 250, y: 5 }
+    data: { label: '用戶資料' },
+    position: { x: 400, y: 5 },
+    draggable: false,
+    selectable: false
   }
 ]
 
 let id = 0
 const getId = () => `dndnode_${id++}`
 
+class Node {
+  constructor (data) {
+    this.label = data
+    this.next = []
+  }
+}
+
+class List {
+  constructor (head = null) {
+    this.head = head
+  }
+}
+
 const DnDFlow = () => {
   const reactFlowWrapper = useRef(null)
   const [reactFlowInstance, setReactFlowInstance] = useState(null)
   const [elements, setElements] = useState(initialElements)
-  const onConnect = (params) => setElements((els) => addEdge(params, els))
+  const getNodes = useCallback((node, current) => {
+    const nodes = getOutgoers(node, elements)
+    nodes.forEach((node) => {
+      const newNode = new Node(node.data.label)
+      current.next = [...current.next, newNode]
+      getNodes(node, newNode)
+    })
+  }, [elements])
+  const getTree = useCallback(() => {
+    const newNode = new Node(elements[0].data.label)
+    const tree = new List(newNode)
+    getNodes(elements[0], newNode)
+    console.log(tree.head)
+  }, [elements, getNodes])
+  useEffect(() => {
+    getTree()
+    // console.log(getOutgoers(elements[0], elements))
+  }, [elements, getTree])
+  const onConnect = (params) => {
+    setElements((els) => addEdge({ ...params, animated: true }, els))
+  }
   const onElementsRemove = (elementsToRemove) =>
     setElements((els) => removeElements(elementsToRemove, els))
 
-  const onLoad = (_reactFlowInstance) =>
+  const onLoad = (_reactFlowInstance) => {
     setReactFlowInstance(_reactFlowInstance)
+  }
 
   const onDragOver = (event) => {
-    console.log('dragover')
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
   }
 
-  console.log(reactFlowInstance && reactFlowInstance.getElements(), 'instance')
   const onDrop = (event) => {
     event.preventDefault()
 
-    console.log('drop')
     const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect()
-    const type = event.dataTransfer.getData('application/reactflow')
-    const position = reactFlowInstance.project({
-      x: event.clientX - reactFlowBounds.left,
-      y: event.clientY - reactFlowBounds.top
-    })
-    const newNode = {
-      id: getId(),
-      type,
-      position,
-      data: { label: `${type} node` }
-    }
+    const nodes = JSON.parse(event.dataTransfer.getData('node'))
+    nodes.forEach((node, index) => {
+      const position = reactFlowInstance.project({
+        x: event.clientX - reactFlowBounds.left + (index - parseInt(nodes.length / 2)) * 180,
+        y: event.clientY - reactFlowBounds.top
+      })
+      const newNode = {
+        id: getId(),
+        type: node.type,
+        position,
+        data: { label: node.label }
+      }
 
-    console.log(id)
-    setElements((es) => es.concat(newNode))
+      setElements((es) => es.concat(newNode))
+    })
   }
 
-  console.log(elements)
   return (
     <div className='dndflow'>
       <ReactFlowProvider>
@@ -74,9 +107,9 @@ const DnDFlow = () => {
             onLoad={onLoad}
             onDrop={onDrop}
             onDragOver={onDragOver}
-          >
-            <Controls />
-          </ReactFlow>
+            zoomOnScroll={false}
+            defaultZoom={1}
+          />
         </div>
       </ReactFlowProvider>
     </div>
