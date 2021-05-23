@@ -53,11 +53,10 @@ const DnDFlow = () => {
     const newNode = new Node(elements[0].data.label)
     const tree = new List(newNode)
     getNodes(elements[0], newNode)
-    console.log(tree.head)
+    console.log(JSON.parse(JSON.stringify(tree.head)))
   }, [elements, getNodes])
   useEffect(() => {
     getTree()
-    // console.log(getOutgoers(elements[0], elements))
   }, [elements, getTree])
   const onConnect = (params) => {
     setElements((els) => addEdge({ ...params, animated: true }, els))
